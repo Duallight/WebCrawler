@@ -18,17 +18,14 @@ public class Parser {
         // Use matcher.group(1) to get the link/title
         private static final Pattern LINK_PATTERN = Pattern.compile("<a [\\w\\s.,:;\"']*href=[\"']([\\w.:/]+)[\"']");
         private static final Pattern TITLE_PATTERN = Pattern.compile("<title>(.*)</title>");
-
         private static final Pattern PROTOCOL_PATTERN = Pattern.compile("^[a-z]+://");
         private static final Pattern NO_PROTOCOL_PATTERN = Pattern.compile("^(//)?(([a-z]+)(\\.[a-z]+)+)|([a-z]+:\\d+)");
-
         private final String url;
         private final String protocol;
         private final String domain;
 
         public Parser(String url) {
             this.url = url.replaceAll("/*$", "");
-
             Matcher pm = PROTOCOL_PATTERN.matcher(url);
             Matcher dp = DOMAIN_PATTERN.matcher(url);
             if (pm.find()) {
@@ -42,7 +39,6 @@ public class Parser {
                 domain = "www.google.com";
             }
         }
-
         public String getTitle() throws IOException {
             return getTitleFromCode(downloadCode(url));
         }
@@ -52,9 +48,7 @@ public class Parser {
             Map<String, String> result = new LinkedHashMap<>();
 
             result.put(url, getTitleFromCode(code));
-
             //System.out.println(url);
-
             for (String link : getLinks(code)) {
                 link = fixLink(link);
                 //System.out.println(link);
@@ -66,7 +60,6 @@ public class Parser {
 
             return Map.copyOf(result);
         }
-
         private String fixLink(String link) {
             link = link.replaceAll("^/+", "");
             if (PROTOCOL_PATTERN.matcher(link).find()) {
@@ -81,18 +74,15 @@ public class Parser {
                 }
             }
         }
-
         private static String[] getLinks(String code) {
             ArrayList<String> links = new ArrayList<>();
             Matcher matcher = LINK_PATTERN.matcher(code);
-
             while (matcher.find()) {
                 links.add(matcher.group(1));
             }
 
             return links.toArray(new String[0]);
         }
-
         private static String getTitleFromCode(String code) {
             Matcher matcher = TITLE_PATTERN.matcher(code);
             if (matcher.find()) {
@@ -101,11 +91,9 @@ public class Parser {
                 return "";
             }
         }
-
         private static String downloadCode(String link) throws IOException {
             return downloadCode(new URL(link).openConnection());
         }
-
         private static String downloadCode(URLConnection connection) throws IOException {
             try (InputStream is = new BufferedInputStream(connection.getInputStream())) {
                 return new String(is.readAllBytes(), StandardCharsets.UTF_8);

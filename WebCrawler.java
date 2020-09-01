@@ -1,27 +1,38 @@
 package crawler;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.ConnectException;
+import java.net.MalformedURLException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class WebCrawler extends JFrame {
     private JTextField urlTextField;
-    private JButton runButton;
+    private JToggleButton runButton;
     private JTextField fileSave;
     private JTextField workerField;
     private JTextField depthField;
     private JTextField timeField;
     private JCheckBox timeEnabled;
     private JCheckBox depthEnabled;
+    private JLabel parsedCounter;
+    private int pagesParsed = 0;
+    private int depthCount = 0;
+    private DefaultTableModel model;
     private final Font font = new Font("Courier",Font.BOLD,12);
     private final Color darkBlue = new Color(4,6,15);
     private final Color slate = new Color(3,53,62);
     private final Color skyBlue = new Color(2,148,165);
     private final Color grayBrown = new Color(167,156,147);
     private final Color mintIsh = new Color(88,255,194);
+
 
     public WebCrawler() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -63,7 +74,7 @@ public class WebCrawler extends JFrame {
         urlTextField.setBorder(BorderFactory.createLineBorder(skyBlue));
         urlTextField.setCaretColor(mintIsh);
 
-        runButton = new JButton("Parse");
+        runButton = new JToggleButton("Run");
         runButton.setVisible(true);
         runButton.setName("RunButton");
         runButton.setPreferredSize(new Dimension(90, 25));
@@ -109,12 +120,14 @@ public class WebCrawler extends JFrame {
         depthField.setFont(font);
         depthField.setBorder(BorderFactory.createLineBorder(skyBlue));
         depthField.setCaretColor(mintIsh);
+        depthField.setName("DepthTextField");
         depthEnabled.setIcon(unchecked);
         depthEnabled.setSelectedIcon(checked);
         depthEnabled.setForeground(mintIsh);
         depthEnabled.setBackground(slate);
         depthEnabled.setBorder(BorderFactory.createLineBorder(skyBlue));
         depthEnabled.setBorderPainted(true);
+        depthEnabled.setName("DepthCheckBox");
         depthPanel.add(depthText, BorderLayout.LINE_START);
         depthPanel.add(depthField, BorderLayout.CENTER);
         depthPanel.add(depthEnabled,BorderLayout.LINE_END);
@@ -177,11 +190,14 @@ public class WebCrawler extends JFrame {
         middlePanel.add(elapsedTime,BorderLayout.PAGE_END);
         //Parsed Pages panel
         JLabel parsedLabel = new JLabel("Parsed Pages:");
+
         parsedLabel.setPreferredSize(new Dimension(150,25));
         parsedLabel.setForeground(grayBrown);
-        JLabel parsedCounter = new JLabel("0");
+
+        parsedCounter = new JLabel(String.valueOf(pagesParsed));
         parsedCounter.setPreferredSize(new Dimension(150,25));
         parsedCounter.setForeground(grayBrown);
+        parsedCounter.setName("ParsedLabel");
         parsedPages.add(parsedLabel,BorderLayout.LINE_START);
         parsedPages.add(parsedCounter,BorderLayout.CENTER);
 
@@ -252,51 +268,87 @@ public class WebCrawler extends JFrame {
         pack();
     }
     private void runButton(){
-        /*// Rows shift down by 1 after removal, so it's necessary to remove them from the end
+        if(runButton.isSelected()) {
+            runButton.setText("Stop");
+            runButton.setForeground(Color.RED);
+        } else {
+            runButton.setText("Run");
+            runButton.setForeground(mintIsh);
+        }
+        // Rows shift down by 1 after removal, so it's necessary to remove them from the end
         urlTextField.setEnabled(false);
-        runButton.setEnabled(false);
         workerField.setEnabled(false);
         depthField.setEnabled(false);
         timeField.setEnabled(false);
         depthEnabled.setEnabled(false);
         timeEnabled.setEnabled(false);
-        Thread t = new Thread(() -> {
-            Parser parser = new Parser(urlTextField.getText(),Integer.parseInt(workerField.getText()), depthEnabled.isSelected(), timeEnabled.isSelected(), Integer.parseInt(depthField.getText()), Integer.parseInt(timeField.getText()));
-            try {
-                for (Map.Entry<String, String> pair : parser.getLinksAndTitles().entrySet()) {
-                    model.addRow(new String[]{pair.getKey(), pair.getValue()});
+        depthCount = Integer.parseInt(depthField.getText());
+        model = new DefaultTableModel(0,2);
+        Queue<String> URL = new LinkedList<>();
+        ArrayList<String> visitedURL = new ArrayList<>();
+        URL.add(urlTextField.getText());
+        visitedURL.add(urlTextField.getText());
+        long startTime = System.currentTimeMillis();
+        AtomicReference<Parser> parser = new AtomicReference<>(new Parser(URL.remove()));
+        try {
+            for (Map.Entry<String, String> pair : parser.get().getLinksAndTitles().entrySet()) {
+                model.addRow(new String[]{pair.getKey(), pair.getValue()});
+                if (!visitedURL.contains(pair.getKey())){
+                    URL.add(pair.getKey());
+                    System.out.println(pair.getKey());
                 }
-            } catch (FileNotFoundException | MalformedURLException ignored) {
-                titleLabel.setText("Provided URL is invalid.");
-            } catch (ConnectException ignored) {
-                titleLabel.setText("Connection refused.");
-            } catch (IOException e) {
-                e.printStackTrace();
+
             }
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        } catch (FileNotFoundException | MalformedURLException ignored) {
+            JOptionPane.showMessageDialog(new JFrame(),"Provided URL is invalid.", "Invalid URL",JOptionPane.ERROR_MESSAGE);
+        } catch (ConnectException ignored) {
+            JOptionPane.showMessageDialog(new JFrame(),"Connection refused.", "Connection Error",JOptionPane.ERROR_MESSAGE);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        Thread t = new Thread(() -> {
+            while (!URL.isEmpty() && depthCount > 0) {
+                parser.set(new Parser(URL.remove()));
+                try {
+                    for (Map.Entry<String, String> pair : parser.get().getLinksAndTitles().entrySet()) {
+                        model.addRow(new String[]{pair.getKey(), pair.getValue()});
+                        pagesParsed++;
+                        parsedCounter.setText(String.valueOf(pagesParsed));
+                        URL.add(pair.getKey());
+                        depthCount--;
+                    }
+                } catch (FileNotFoundException | MalformedURLException ignored) {
+                    //JOptionPane.showMessageDialog(new JFrame(),"Provided URL is invalid.", "Invalid URL",JOptionPane.ERROR_MESSAGE);
+                } catch (ConnectException ignored) {
+                    //JOptionPane.showMessageDialog(new JFrame(),"Connection refused.", "Connection Error",JOptionPane.ERROR_MESSAGE);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                urlTextField.setEnabled(true);
+                workerField.setEnabled(true);
+                depthField.setEnabled(true);
+                timeField.setEnabled(true);
+                depthEnabled.setEnabled(true);
+                timeEnabled.setEnabled(true);
+                runButton.setText("Run");
+                runButton.setForeground(mintIsh);
+                runButton.setSelected(false);
+
+
             }
-            urlTextField.setEnabled(true);
-            runButton.setEnabled(true);
-            workerField.setEnabled(true);
-            depthField.setEnabled(true);
-            timeField.setEnabled(true);
-            depthEnabled.setEnabled(true);
-            timeEnabled.setEnabled(true);
         });
         t.start();
-*/
+
+
     }
     private void saveButton() {
         //Save into file
         String fileName = fileSave.getText();
         StringBuilder fileContents = new StringBuilder();
-        /*for(int i = 0; i < titlesTable.getRowCount(); i++) {
-            fileContents.append((String) titlesTable.getModel().getValueAt(i, 0));
-            fileContents.append("\n").append((String) titlesTable.getModel().getValueAt(i, 1)).append("\n");
-        }*/
+        for(int i = 0; i < model.getRowCount(); i++) {
+            fileContents.append((String) model.getValueAt(i, 0));
+            fileContents.append("\n").append((String) model.getValueAt(i, 1)).append("\n");
+        }
         try (PrintWriter out = new PrintWriter(fileName)) {
             out.print(fileContents);
         } catch (FileNotFoundException e) {
