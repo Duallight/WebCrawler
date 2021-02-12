@@ -1,6 +1,4 @@
 # WebCrawler
-Work in progress.
-Currently gets all links embedded in a webpage, and shows the data to a table. 
-It also lets you save the info to a file. 
-# End Goal:
-Create a real web crawler using breadth first search. 
+![WebCrawler Screenshot](https://raw.githubusercontent.com/Duallight/WebCrawler/master/Screenshots/webCrawlerExample.png)
+
+This webcrawler starts at a given URL, and finds all links and related data, and outputs it into a text file. You can set how many worker threads available to search, as well as a depth of the search or a time limit. It automatically keeps track of elapsed time and parsed pages. 
